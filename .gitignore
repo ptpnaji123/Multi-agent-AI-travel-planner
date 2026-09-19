@@ -1,0 +1,22 @@
+# Environment
+.env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE
+.vscode/
+
+# Chroma
+chroma_db/
+
+# Generated files
+output/
+*.pdf
+*.ics
+
+# Logs
+*.log
