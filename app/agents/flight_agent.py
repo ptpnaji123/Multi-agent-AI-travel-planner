@@ -1,11 +1,8 @@
 from app.models.trip_request import TripRequest
 from app.models.flight import RoundTripFlightOption
 from app.providers.duffel_provider import DuffelProvider
+from app.services.currency_service import CurrencyService
 
-
-# Temporary airport mapping.
-# We will replace this later with a proper airport
-# lookup service.
 
 AIRPORT_CODES = {
     "kochi": "COK",
@@ -15,7 +12,7 @@ AIRPORT_CODES = {
 
 
 def resolve_airport_code(
-    location: str
+    location: str,
 ) -> str:
 
     location_key = (
@@ -25,29 +22,22 @@ def resolve_airport_code(
     )
 
     if location_key in AIRPORT_CODES:
-
         return AIRPORT_CODES[
             location_key
         ]
 
-    # Allow direct IATA codes.
     if len(location_key) == 3:
-
         return location_key.upper()
 
     raise ValueError(
-        f"Airport code not found "
-        f"for location: {location}"
+        f"Airport code not found for location: "
+        f"{location}"
     )
 
 
 def flight_agent(
     trip_request: TripRequest,
 ) -> list[RoundTripFlightOption]:
-
-    # --------------------------------------------------
-    # RESOLVE AIRPORTS
-    # --------------------------------------------------
 
     origin = resolve_airport_code(
         trip_request.origin
@@ -57,15 +47,7 @@ def flight_agent(
         trip_request.destination
     )
 
-    # --------------------------------------------------
-    # PROVIDER
-    # --------------------------------------------------
-
     provider = DuffelProvider()
-
-    # --------------------------------------------------
-    # SEARCH ROUND TRIP
-    # --------------------------------------------------
 
     flights = provider.search_flights(
 
@@ -86,17 +68,38 @@ def flight_agent(
         ),
     )
 
-    # --------------------------------------------------
-    # SORT BY TOTAL PRICE
-    # --------------------------------------------------
+    # -----------------------------------------
+    # Currency conversion
+    # -----------------------------------------
+
+    currency_service = CurrencyService()
+
+    for flight in flights:
+
+        flight.total_price_inr = float(
+            currency_service.convert_currency(
+
+                amount=flight.total_price,
+
+                from_currency=flight.currency,
+
+                to_currency="INR",
+            )
+        )
+
+    # -----------------------------------------
+    # Sort by INR price
+    # -----------------------------------------
 
     flights = sorted(
         flights,
-        key=lambda flight: flight.total_price
+        key=lambda flight: (
+            flight.total_price_inr
+        ),
     )
 
-    # --------------------------------------------------
-    # TOP 3
-    # --------------------------------------------------
+    # -----------------------------------------
+    # Return top 3
+    # -----------------------------------------
 
     return flights[:3]

@@ -1,0 +1,9 @@
+{
+  "Dubai": {
+    "currency": "INR",
+    "food_per_day": 2500,
+    "transport_per_day": 1000,
+    "activities_total": 5000,
+    "notes": "Initial planning estimates. Replace with live/activity-specific pricing later."
+  }
+}

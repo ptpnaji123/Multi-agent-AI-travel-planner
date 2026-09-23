@@ -1,95 +1,103 @@
-from app.services.currency_service import (
-    CurrencyService,
-    convert_to_inr,
-)
+from datetime import date
+
+from app.models.trip_request import TripRequest
+from app.agents.flight_agent import flight_agent
+from app.agents.hotel_agent import hotel_agent
 
 
 def main():
 
-    service = CurrencyService()
+    trip_request = TripRequest(
 
-    print("\n==============================")
-    print("CURRENCY SERVICE TEST")
-    print("==============================")
+        origin="Kochi",
 
-    # -----------------------------------------
-    # EUR -> INR
-    # -----------------------------------------
+        destination="Dubai",
 
-    eur_rate = service.get_exchange_rate(
-        from_currency="EUR",
-        to_currency="INR",
+        start_date=date(
+            2026,
+            12,
+            10,
+        ),
+
+        end_date=date(
+            2026,
+            12,
+            15,
+        ),
+
+        travelers=1,
+
+        currency="INR",
     )
 
-    print(
-        f"\nEUR -> INR rate: "
-        f"{eur_rate}"
+    # =========================================
+    # FLIGHTS
+    # =========================================
+
+    print("\n================================")
+    print("FLIGHT PRICE NORMALIZATION")
+    print("================================")
+
+    flights = flight_agent(
+        trip_request
     )
 
-    eur_amount = service.convert_currency(
-        amount=236.11,
-        from_currency="EUR",
-        to_currency="INR",
+    for index, flight in enumerate(
+        flights,
+        start=1,
+    ):
+
+        print(
+            f"\nFlight {index}"
+        )
+
+        print(
+            f"Original: "
+            f"{flight.total_price:.2f} "
+            f"{flight.currency}"
+        )
+
+        print(
+            f"INR: "
+            f"₹{flight.total_price_inr:,.2f}"
+        )
+
+    # =========================================
+    # HOTELS
+    # =========================================
+
+    print("\n================================")
+    print("HOTEL PRICE NORMALIZATION")
+    print("================================")
+
+    hotels = hotel_agent(
+        trip_request
     )
 
-    print(
-        f"236.11 EUR = "
-        f"{eur_amount} INR"
-    )
+    for index, hotel in enumerate(
+        hotels,
+        start=1,
+    ):
 
-    # -----------------------------------------
-    # USD -> INR
-    # -----------------------------------------
+        print(
+            f"\nHotel {index}"
+        )
 
-    usd_rate = service.get_exchange_rate(
-        from_currency="USD",
-        to_currency="INR",
-    )
+        print(
+            f"Hotel: "
+            f"{hotel.name}"
+        )
 
-    print(
-        f"\nUSD -> INR rate: "
-        f"{usd_rate}"
-    )
+        print(
+            f"Original: "
+            f"{hotel.total_price:.2f} "
+            f"{hotel.currency}"
+        )
 
-    usd_amount = service.convert_currency(
-        amount=219.47,
-        from_currency="USD",
-        to_currency="INR",
-    )
-
-    print(
-        f"219.47 USD = "
-        f"{usd_amount} INR"
-    )
-
-    # -----------------------------------------
-    # INR -> INR
-    # -----------------------------------------
-
-    inr_amount = service.convert_currency(
-        amount=10000,
-        from_currency="INR",
-        to_currency="INR",
-    )
-
-    print(
-        f"\n10000 INR = "
-        f"{inr_amount} INR"
-    )
-
-    # -----------------------------------------
-    # Helper function
-    # -----------------------------------------
-
-    hotel_inr = convert_to_inr(
-        amount=236.11,
-        currency="EUR",
-    )
-
-    print(
-        f"\nHotel price converted to INR: "
-        f"{hotel_inr} INR"
-    )
+        print(
+            f"INR: "
+            f"₹{hotel.total_price_inr:,.2f}"
+        )
 
 
 if __name__ == "__main__":
