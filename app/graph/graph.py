@@ -3,56 +3,46 @@ from langgraph.graph import StateGraph, START, END
 from app.graph.state import TravelState
 
 from app.agents.intake_agent import intake_agent
-
-from app.agents.destination_agent import (
-    destination_agent,
-)
-
-from app.agents.flight_agent import (
-    flight_agent,
-)
-
-from app.agents.hotel_agent import (
-    hotel_agent,
-)
-
-from app.agents.budget_agent import (
-    budget_agent,
-)
+from app.agents.destination_agent import destination_agent
+from app.agents.flight_agent import flight_agent
+from app.agents.hotel_agent import hotel_agent
+from app.agents.budget_agent import budget_agent
+from app.agents.itinerary_agent import itinerary_agent
+from app.agents.critic_agent import critic_agent
 
 from app.agents.selection_agent import (
     select_flight,
     select_hotel,
 )
 
+from app.validators.schedule_validator import (
+    validate_schedule,
+)
 
-# =========================================================
-# INTAKE NODE
-# =========================================================
+from app.services.itinerary_repair_service import (
+    deterministic_repair_itinerary,
+)
 
-def intake_node(
-    state: TravelState,
-) -> TravelState:
 
-    print(
-        "\n--- INTAKE AGENT ---"
-    )
+# ============================================================
+# INTAKE
+# ============================================================
 
-    user_request = state[
-        "user_request"
-    ]
+def intake_node(state: TravelState):
+
+    print("\n--- INTAKE ---")
 
     trip_request = intake_agent(
-        user_request
+        state["user_request"]
     )
 
-    print(
-        "\nStructured Trip Request:"
-    )
-
-    print(
-        trip_request
-    )
+    print("\nTrip Request:")
+    print(f"Origin: {trip_request.origin}")
+    print(f"Destination: {trip_request.destination}")
+    print(f"Start Date: {trip_request.start_date}")
+    print(f"End Date: {trip_request.end_date}")
+    print(f"Travelers: {trip_request.travelers}")
+    print(f"Currency: {trip_request.currency}")
 
     return {
         **state,
@@ -60,59 +50,31 @@ def intake_node(
     }
 
 
-# =========================================================
-# COORDINATOR NODE
-# =========================================================
+# ============================================================
+# COORDINATOR
+# ============================================================
 
-def coordinator_node(
-    state: TravelState,
-) -> TravelState:
+def coordinator_node(state: TravelState):
 
-    print(
-        "\n--- COORDINATOR NODE ---"
-    )
+    print("\n--- COORDINATOR ---")
+    print("Trip request validated.")
 
-    trip_request = state[
-        "trip_request"
-    ]
-
-    print(
-        "Coordinator received:"
-    )
-
-    print(
-        trip_request
-    )
-
-    return state
+    return {
+        **state,
+        "repair_attempt": 0,
+    }
 
 
-# =========================================================
-# DESTINATION RESEARCH NODE
-# =========================================================
+# ============================================================
+# DESTINATION RESEARCH
+# ============================================================
 
-def destination_node(
-    state: TravelState,
-) -> TravelState:
+def destination_node(state: TravelState):
 
-    print(
-        "\n--- DESTINATION RESEARCH AGENT ---"
-    )
-
-    destination = state[
-        "trip_request"
-    ].destination
+    print("\n--- DESTINATION RESEARCH ---")
 
     research = destination_agent(
-        destination
-    )
-
-    print(
-        "\nDestination Research:"
-    )
-
-    print(
-        research
+        state["trip_request"]
     )
 
     return {
@@ -121,152 +83,17 @@ def destination_node(
     }
 
 
-# =========================================================
-# FLIGHT NODE
-# =========================================================
+# ============================================================
+# FLIGHT SEARCH
+# ============================================================
 
-def flight_node(
-    state: TravelState,
-) -> TravelState:
+def flight_node(state: TravelState):
 
-    print(
-        "\n--- FLIGHT AGENT ---"
-    )
-
-    trip_request = state[
-        "trip_request"
-    ]
+    print("\n--- FLIGHT SEARCH ---")
 
     flights = flight_agent(
-        trip_request
+        state["trip_request"]
     )
-
-    print(
-        "\nTop Flight Options:"
-    )
-
-    if not flights:
-
-        print(
-            "No round-trip flights found."
-        )
-
-    for index, flight in enumerate(
-        flights,
-        start=1,
-    ):
-
-        print(
-            "\n=============================="
-        )
-
-        print(
-            f"OPTION {index}"
-        )
-
-        # -----------------------------------------
-        # Outbound
-        # -----------------------------------------
-
-        print(
-            "\nOutbound:"
-        )
-
-        print(
-            f"  Airline: "
-            f"{flight.outbound.airline}"
-        )
-
-        print(
-            f"  Flight: "
-            f"{flight.outbound.flight_number}"
-        )
-
-        print(
-            f"  Route: "
-            f"{flight.outbound.origin}"
-            f" -> "
-            f"{flight.outbound.destination}"
-        )
-
-        print(
-            f"  Departure: "
-            f"{flight.outbound.departure_time}"
-        )
-
-        print(
-            f"  Arrival: "
-            f"{flight.outbound.arrival_time}"
-        )
-
-        print(
-            f"  Duration: "
-            f"{flight.outbound.duration}"
-        )
-
-        # -----------------------------------------
-        # Return
-        # -----------------------------------------
-
-        print(
-            "\nReturn:"
-        )
-
-        print(
-            f"  Airline: "
-            f"{flight.return_flight.airline}"
-        )
-
-        print(
-            f"  Flight: "
-            f"{flight.return_flight.flight_number}"
-        )
-
-        print(
-            f"  Route: "
-            f"{flight.return_flight.origin}"
-            f" -> "
-            f"{flight.return_flight.destination}"
-        )
-
-        print(
-            f"  Departure: "
-            f"{flight.return_flight.departure_time}"
-        )
-
-        print(
-            f"  Arrival: "
-            f"{flight.return_flight.arrival_time}"
-        )
-
-        print(
-            f"  Duration: "
-            f"{flight.return_flight.duration}"
-        )
-
-        # -----------------------------------------
-        # Price
-        # -----------------------------------------
-
-        print(
-            "\nPrice:"
-        )
-
-        print(
-            f"  Original Price: "
-            f"{flight.total_price:.2f} "
-            f"{flight.currency}"
-        )
-
-        print(
-            f"  INR Price: "
-            f"₹{flight.total_price_inr:,.2f}"
-        )
-
-        print(
-            f"  Provider: "
-            f"{flight.provider}"
-        )
 
     return {
         **state,
@@ -274,50 +101,16 @@ def flight_node(
     }
 
 
-# =========================================================
-# FLIGHT SELECTION NODE
-# =========================================================
+# ============================================================
+# FLIGHT SELECTION
+# ============================================================
 
-def flight_selection_node(
-    state: TravelState,
-) -> TravelState:
+def flight_selection_node(state: TravelState):
 
-    print(
-        "\n--- FLIGHT SELECTION ---"
-    )
-
-    flights = state[
-        "flights"
-    ]
+    print("\n--- FLIGHT SELECTION ---")
 
     selected_flight = select_flight(
-        flights
-    )
-
-    print(
-        "\nSelected Flight:"
-    )
-
-    print(
-        f"Airline: "
-        f"{selected_flight.outbound.airline}"
-    )
-
-    print(
-        f"Flight: "
-        f"{selected_flight.outbound.flight_number}"
-    )
-
-    print(
-        f"Route: "
-        f"{selected_flight.outbound.origin}"
-        f" -> "
-        f"{selected_flight.outbound.destination}"
-    )
-
-    print(
-        f"INR Price: "
-        f"₹{selected_flight.total_price_inr:,.2f}"
+        state["flights"]
     )
 
     return {
@@ -326,108 +119,17 @@ def flight_selection_node(
     }
 
 
-# =========================================================
-# HOTEL NODE
-# =========================================================
+# ============================================================
+# HOTEL SEARCH
+# ============================================================
 
-def hotel_node(
-    state: TravelState,
-) -> TravelState:
+def hotel_node(state: TravelState):
 
-    print(
-        "\n--- HOTEL AGENT ---"
-    )
-
-    trip_request = state[
-        "trip_request"
-    ]
+    print("\n--- HOTEL SEARCH ---")
 
     hotels = hotel_agent(
-        trip_request
+        state["trip_request"]
     )
-
-    print(
-        "\nTop Hotel Options:"
-    )
-
-    if not hotels:
-
-        print(
-            "No hotels found."
-        )
-
-    for index, hotel in enumerate(
-        hotels,
-        start=1,
-    ):
-
-        print(
-            "\n=============================="
-        )
-
-        print(
-            f"OPTION {index}"
-        )
-
-        print(
-            f"Hotel: "
-            f"{hotel.name}"
-        )
-
-        print(
-            f"Hotel Code: "
-            f"{hotel.hotel_code}"
-        )
-
-        print(
-            f"Category: "
-            f"{hotel.category}"
-        )
-
-        print(
-            f"Room: "
-            f"{hotel.room_name}"
-        )
-
-        print(
-            f"Board: "
-            f"{hotel.board}"
-        )
-
-        # -----------------------------------------
-        # Price
-        # -----------------------------------------
-
-        print(
-            f"Original Price: "
-            f"{hotel.total_price:.2f} "
-            f"{hotel.currency}"
-        )
-
-        print(
-            f"INR Price: "
-            f"₹{hotel.total_price_inr:,.2f}"
-        )
-
-        print(
-            f"Rate Type: "
-            f"{hotel.rate_type}"
-        )
-
-        print(
-            f"Rate Class: "
-            f"{hotel.rate_class}"
-        )
-
-        print(
-            f"Free Cancellation: "
-            f"{hotel.free_cancellation}"
-        )
-
-        print(
-            f"Provider: "
-            f"{hotel.provider}"
-        )
 
     return {
         **state,
@@ -435,48 +137,16 @@ def hotel_node(
     }
 
 
-# =========================================================
-# HOTEL SELECTION NODE
-# =========================================================
+# ============================================================
+# HOTEL SELECTION
+# ============================================================
 
-def hotel_selection_node(
-    state: TravelState,
-) -> TravelState:
+def hotel_selection_node(state: TravelState):
 
-    print(
-        "\n--- HOTEL SELECTION ---"
-    )
-
-    hotels = state[
-        "hotels"
-    ]
+    print("\n--- HOTEL SELECTION ---")
 
     selected_hotel = select_hotel(
-        hotels
-    )
-
-    print(
-        "\nSelected Hotel:"
-    )
-
-    print(
-        f"Hotel: "
-        f"{selected_hotel.name}"
-    )
-
-    print(
-        f"Room: "
-        f"{selected_hotel.room_name}"
-    )
-
-    print(
-        f"Board: "
-        f"{selected_hotel.board}"
-    )
-
-    print(
-        f"INR Price: "
-        f"₹{selected_hotel.total_price_inr:,.2f}"
+        state["hotels"]
     )
 
     return {
@@ -485,99 +155,354 @@ def hotel_selection_node(
     }
 
 
-# =========================================================
-# BUDGET NODE
-# =========================================================
+# ============================================================
+# BUDGET
+# ============================================================
 
-def budget_node(
-    state: TravelState,
-) -> TravelState:
+def budget_node(state: TravelState):
 
-    print(
-        "\n--- BUDGET AGENT ---"
-    )
+    print("\n--- BUDGET ---")
 
-    trip_request = state[
-        "trip_request"
-    ]
-
-    flights = state[
-        "flights"
-    ]
-
-    hotels = state[
-        "hotels"
-    ]
-
-    budget = budget_agent(
-
-        trip_request=trip_request,
-
-        flights=flights,
-
-        hotels=hotels,
+    budget_report = budget_agent(
+        trip_request=state["trip_request"],
+        selected_flight=state["selected_flight"],
+        selected_hotel=state["selected_hotel"],
     )
 
     print(
-        "\n=============================="
+        f"Flight Cost: ₹{budget_report.flight_cost:.2f}"
     )
 
     print(
-        "TRIP BUDGET"
+        f"Hotel Cost: ₹{budget_report.hotel_cost:.2f}"
     )
 
     print(
-        "=============================="
+        f"Food Cost: ₹{budget_report.food_cost:.2f}"
     )
 
     print(
-        f"Flight Cost: "
-        f"₹{budget.flight_cost:,.2f}"
+        f"Transport Cost: ₹{budget_report.transport_cost:.2f}"
     )
 
     print(
-        f"Hotel Cost: "
-        f"₹{budget.hotel_cost:,.2f}"
-    )
-
-    print(
-        f"Food Cost: "
-        f"₹{budget.food_cost:,.2f}"
-    )
-
-    print(
-        f"Transport Cost: "
-        f"₹{budget.transport_cost:,.2f}"
-    )
-
-    print(
-        f"Activity Cost: "
-        f"₹{budget.activity_cost:,.2f}"
-    )
-
-    print(
-        "------------------------------"
+        f"Activity Cost: ₹{budget_report.activity_cost:.2f}"
     )
 
     print(
         f"TOTAL ESTIMATED COST: "
-        f"₹{budget.total_cost:,.2f}"
-    )
-
-    print(
-        f"\nNotes: "
-        f"{budget.notes}"
+        f"₹{budget_report.total_cost:.2f}"
     )
 
     return {
         **state,
-        "budget_report": budget,
+        "budget_report": budget_report,
     }
 
 
-# =========================================================
-# BUILD LANGGRAPH
-# =========================================================
+# ============================================================
+# ITINERARY GENERATION
+# ============================================================
+
+def itinerary_node(state: TravelState):
+
+    print("\n--- ITINERARY ---")
+
+    itinerary = itinerary_agent(
+        trip_request=state["trip_request"],
+        destination_research=state["destination_research"],
+        selected_flight=state["selected_flight"],
+        selected_hotel=state["selected_hotel"],
+        budget_report=state["budget_report"],
+    )
+
+    print("\n--- ITINERARY GENERATED ---")
+
+    print(
+        f"Destination: {itinerary.destination}"
+    )
+
+    print(
+        f"Days generated: {len(itinerary.days)}"
+    )
+
+    for day in itinerary.days:
+
+        print(
+            f"\nDay {day.day} ({day.date})"
+        )
+
+        print(
+            f"Area: {day.area}"
+        )
+
+        for activity in day.activities:
+
+            print(
+                f"  {activity.start_time} - "
+                f"{activity.end_time}: "
+                f"{activity.name}"
+            )
+
+            print(
+                f"  Location: {activity.location}"
+            )
+
+            print(
+                f"  Cost: ₹{activity.estimated_cost:.2f}"
+            )
+
+            print(
+                f"  Currency: {activity.currency}"
+            )
+
+    return {
+        **state,
+        "itinerary": itinerary,
+    }
+
+
+# ============================================================
+# SCHEDULE VALIDATION
+# ============================================================
+
+def schedule_validation_node(state: TravelState):
+
+    print("\n--- SCHEDULE VALIDATION ---")
+
+    # IMPORTANT:
+    #
+    # validate_schedule() currently accepts only:
+    #
+    #   itinerary
+    #   selected_flight
+    #   selected_hotel
+    #
+    # It does NOT accept trip_request.
+
+    validation = validate_schedule(
+        itinerary=state["itinerary"],
+        selected_flight=state["selected_flight"],
+        selected_hotel=state["selected_hotel"],
+    )
+
+    print("\nSchedule Validation Result:")
+
+    print(
+        f"Valid: {validation.get('valid', False)}"
+    )
+
+    errors = validation.get(
+        "errors",
+        [],
+    )
+
+    warnings = validation.get(
+        "warnings",
+        [],
+    )
+
+    if errors:
+
+        print("\nErrors:")
+
+        for error in errors:
+            print(f"- {error}")
+
+    if warnings:
+
+        print("\nWarnings:")
+
+        for warning in warnings:
+            print(f"- {warning}")
+
+    return {
+        **state,
+        "schedule_validation": validation,
+    }
+
+
+# ============================================================
+# CRITIC
+# ============================================================
+
+def critic_node(state: TravelState):
+
+    print("\n--- CRITIC ---")
+
+    repair_attempt = state.get(
+        "repair_attempt",
+        0,
+    )
+
+    critique = critic_agent(
+        trip_request=state["trip_request"],
+        itinerary=state["itinerary"],
+        destination_research=state["destination_research"],
+        schedule_validation=state["schedule_validation"],
+        repair_attempt=repair_attempt,
+    )
+
+    print("\nCritic Result:")
+
+    print(
+        f"Valid: {critique.get('valid', False)}"
+    )
+
+    print(
+        f"Needs Repair: "
+        f"{critique.get('needs_repair', False)}"
+    )
+
+    errors = critique.get(
+        "errors",
+        [],
+    )
+
+    warnings = critique.get(
+        "warnings",
+        [],
+    )
+
+    if errors:
+
+        print("\nCritic Errors:")
+
+        for error in errors:
+            print(f"- {error}")
+
+    if warnings:
+
+        print("\nCritic Warnings:")
+
+        for warning in warnings:
+            print(f"- {warning}")
+
+    return {
+        **state,
+        "critique": critique,
+    }
+
+
+# ============================================================
+# DETERMINISTIC ITINERARY REPAIR
+# ============================================================
+
+def repair_itinerary_node(state: TravelState):
+
+    current_attempt = state.get(
+        "repair_attempt",
+        0,
+    )
+
+    new_attempt = current_attempt + 1
+
+    print("\n--- ITINERARY REPAIR ---")
+
+    print(
+        f"Repair attempt: {new_attempt}"
+    )
+
+    print(
+        "Applying deterministic schedule repair..."
+    )
+
+    repaired_itinerary = (
+        deterministic_repair_itinerary(
+            itinerary=state["itinerary"],
+            trip_request=state["trip_request"],
+            selected_flight=state["selected_flight"],
+            selected_hotel=state["selected_hotel"],
+        )
+    )
+
+    print(
+        "Deterministic itinerary repair completed."
+    )
+
+    return {
+        **state,
+        "itinerary": repaired_itinerary,
+        "repair_attempt": new_attempt,
+    }
+
+
+# ============================================================
+# CRITIC ROUTER
+# ============================================================
+
+def critic_router(state: TravelState):
+
+    critique = state.get(
+        "critique",
+        {},
+    )
+
+    valid = critique.get(
+        "valid",
+        False,
+    )
+
+    repair_attempt = state.get(
+        "repair_attempt",
+        0,
+    )
+
+    # --------------------------------------------------------
+    # VALID
+    # --------------------------------------------------------
+
+    if valid:
+
+        print(
+            "\nCritic: itinerary is valid."
+        )
+
+        print(
+            "No repair required."
+        )
+
+        return "end"
+
+    # --------------------------------------------------------
+    # ONE REPAIR ALLOWED
+    # --------------------------------------------------------
+
+    if repair_attempt < 1:
+
+        print(
+            "\nCritic: itinerary requires repair."
+        )
+
+        print(
+            "Routing to deterministic repair."
+        )
+
+        return "repair"
+
+    # --------------------------------------------------------
+    # STOP AFTER ONE REPAIR
+    # --------------------------------------------------------
+
+    print(
+        "\nCritic: itinerary still has validation "
+        "issues after deterministic repair."
+    )
+
+    print(
+        "Maximum repair attempts reached."
+    )
+
+    print(
+        "Stopping repair loop."
+    )
+
+    return "end"
+
+
+# ============================================================
+# BUILD GRAPH
+# ============================================================
 
 def build_graph():
 
@@ -585,9 +510,9 @@ def build_graph():
         TravelState
     )
 
-    # -----------------------------------------
-    # Register nodes
-    # -----------------------------------------
+    # ========================================================
+    # NODES
+    # ========================================================
 
     builder.add_node(
         "intake",
@@ -629,9 +554,29 @@ def build_graph():
         budget_node,
     )
 
-    # -----------------------------------------
-    # Workflow edges
-    # -----------------------------------------
+    builder.add_node(
+        "itinerary",
+        itinerary_node,
+    )
+
+    builder.add_node(
+        "schedule_validation",
+        schedule_validation_node,
+    )
+
+    builder.add_node(
+        "critic",
+        critic_node,
+    )
+
+    builder.add_node(
+        "repair_itinerary",
+        repair_itinerary_node,
+    )
+
+    # ========================================================
+    # MAIN FLOW
+    # ========================================================
 
     builder.add_edge(
         START,
@@ -675,11 +620,50 @@ def build_graph():
 
     builder.add_edge(
         "budget",
-        END,
+        "itinerary",
     )
 
-    # -----------------------------------------
-    # Compile graph
-    # -----------------------------------------
+    builder.add_edge(
+        "itinerary",
+        "schedule_validation",
+    )
+
+    builder.add_edge(
+        "schedule_validation",
+        "critic",
+    )
+
+    # ========================================================
+    # CRITIC ROUTING
+    # ========================================================
+
+    builder.add_conditional_edges(
+        "critic",
+        critic_router,
+        {
+            "repair": "repair_itinerary",
+            "end": END,
+        },
+    )
+
+    # ========================================================
+    # REPAIR → VALIDATION
+    # ========================================================
+
+    builder.add_edge(
+        "repair_itinerary",
+        "schedule_validation",
+    )
+
+    # ========================================================
+    # COMPILE
+    # ========================================================
 
     return builder.compile()
+
+
+# ============================================================
+# DEFAULT GRAPH INSTANCE
+# ============================================================
+
+graph = build_graph()

@@ -9,35 +9,31 @@ from app.models.itinerary import Itinerary
 
 
 class TravelState(TypedDict, total=False):
+
     user_request: str
 
-    # Structured user request
     trip_request: TripRequest
 
-    # Destination research
     destination_research: DestinationResearch
 
-    # Available flight options
     flights: list[RoundTripFlightOption]
 
-    # Selected flight used by downstream agents
     selected_flight: RoundTripFlightOption
 
-    # Available hotel options
     hotels: list[HotelOption]
 
-    # Selected hotel used by downstream agents
     selected_hotel: HotelOption
 
-    # Budget
     budget_report: BudgetReport
 
-    # Final itinerary
     itinerary: Itinerary
 
-    # Validation / critique
+    schedule_validation: dict
+
     critique: dict
+
     approval: str
 
-    # Errors collected during the workflow
     errors: list[str]
+
+    repair_attempt: int

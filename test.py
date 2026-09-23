@@ -1,104 +1,172 @@
-from datetime import date
+from app.validators.schedule_validator import validate_schedule
 
-from app.models.trip_request import TripRequest
-from app.agents.flight_agent import flight_agent
-from app.agents.hotel_agent import hotel_agent
+from app.models.itinerary import (
+    Itinerary,
+    ItineraryDay,
+    Activity,
+)
+
+from app.models.flight import (
+    RoundTripFlightOption,
+    FlightSegment,
+)
+
+from app.models.hotel import HotelOption
 
 
-def main():
+# --------------------------------------------------
+# Fake flight
+# --------------------------------------------------
 
-    trip_request = TripRequest(
+flight = RoundTripFlightOption(
+    outbound=FlightSegment(
+        airline="Duffel Airways",
+        flight_number="6057",
+        origin="COK",
+        destination="DXB",
+        departure_time="2026-12-10T06:58:00",
+        arrival_time="2026-12-10T09:45:00",
+        duration="4h 17m",
+    ),
+    return_flight=FlightSegment(
+        airline="Duffel Airways",
+        flight_number="6058",
+        origin="DXB",
+        destination="COK",
+        departure_time="2026-12-15T10:50:00",
+        arrival_time="2026-12-15T16:37:00",
+        duration="4h 47m",
+    ),
+    total_price=230.40,
+    currency="USD",
+    total_price_inr=22040.064,
+    provider="Duffel",
+)
 
-        origin="Kochi",
 
-        destination="Dubai",
+# --------------------------------------------------
+# Fake hotel
+# --------------------------------------------------
 
-        start_date=date(
-            2026,
-            12,
-            10,
+hotel = HotelOption(
+    hotel_code="TEST001",
+    name="You&Co Dubai",
+    location="Dubai",
+    room_name="MeetUp single room in shared apartment",
+    board="ROOM ONLY",
+    check_in_date="2026-12-10",
+    check_out_date="2026-12-15",
+    price_per_night=47.222,
+    total_price=236.11,
+    currency="EUR",
+    price_inr=25868.21,
+)
+
+
+# --------------------------------------------------
+# Deliberately INVALID itinerary
+# --------------------------------------------------
+
+itinerary = Itinerary(
+    destination="Dubai",
+    days=[
+        ItineraryDay(
+            day=1,
+            date="2026-12-10",
+            area="Downtown Dubai",
+            activities=[
+                Activity(
+                    name="Hotel Check-in",
+                    start_time="11:00",
+                    end_time="12:00",
+                    location="You&Co Dubai",
+                )
+            ],
         ),
 
-        end_date=date(
-            2026,
-            12,
-            15,
+        ItineraryDay(
+            day=2,
+            date="2026-12-11",
+            area="Downtown Dubai",
+            activities=[
+                Activity(
+                    name="Dubai Mall",
+                    start_time="10:00",
+                    end_time="13:00",
+                    location="Dubai Mall",
+                ),
+                Activity(
+                    name="Burj Khalifa",
+                    start_time="12:00",
+                    end_time="14:00",
+                    location="Burj Khalifa",
+                ),
+            ],
         ),
 
-        travelers=1,
+        ItineraryDay(
+            day=3,
+            date="2026-12-12",
+            area="Jumeirah",
+            activities=[],
+        ),
 
-        currency="INR",
-    )
+        ItineraryDay(
+            day=4,
+            date="2026-12-13",
+            area="Palm Jumeirah",
+            activities=[],
+        ),
 
-    # =========================================
-    # FLIGHTS
-    # =========================================
+        ItineraryDay(
+            day=5,
+            date="2026-12-14",
+            area="Dubai",
+            activities=[],
+        ),
 
-    print("\n================================")
-    print("FLIGHT PRICE NORMALIZATION")
-    print("================================")
-
-    flights = flight_agent(
-        trip_request
-    )
-
-    for index, flight in enumerate(
-        flights,
-        start=1,
-    ):
-
-        print(
-            f"\nFlight {index}"
-        )
-
-        print(
-            f"Original: "
-            f"{flight.total_price:.2f} "
-            f"{flight.currency}"
-        )
-
-        print(
-            f"INR: "
-            f"₹{flight.total_price_inr:,.2f}"
-        )
-
-    # =========================================
-    # HOTELS
-    # =========================================
-
-    print("\n================================")
-    print("HOTEL PRICE NORMALIZATION")
-    print("================================")
-
-    hotels = hotel_agent(
-        trip_request
-    )
-
-    for index, hotel in enumerate(
-        hotels,
-        start=1,
-    ):
-
-        print(
-            f"\nHotel {index}"
-        )
-
-        print(
-            f"Hotel: "
-            f"{hotel.name}"
-        )
-
-        print(
-            f"Original: "
-            f"{hotel.total_price:.2f} "
-            f"{hotel.currency}"
-        )
-
-        print(
-            f"INR: "
-            f"₹{hotel.total_price_inr:,.2f}"
-        )
+        ItineraryDay(
+            day=6,
+            date="2026-12-15",
+            area="Dubai",
+            activities=[
+                Activity(
+                    name="Lunch",
+                    start_time="13:00",
+                    end_time="14:30",
+                    location="Dubai",
+                )
+            ],
+        ),
+    ],
+)
 
 
-if __name__ == "__main__":
-    main()
+# --------------------------------------------------
+# Validate
+# --------------------------------------------------
+
+result = validate_schedule(
+    itinerary=itinerary,
+    selected_flight=flight,
+    selected_hotel=hotel,
+)
+
+
+print("\n==============================")
+print("SCHEDULE VALIDATION")
+print("==============================")
+
+print(
+    f"\nValid: {result['valid']}"
+)
+
+print("\nErrors:")
+
+for error in result["errors"]:
+    print(f"- {error}")
+
+print("\nWarnings:")
+
+for warning in result["warnings"]:
+    print(f"- {warning}")

@@ -9,35 +9,37 @@ COST_FILE = (
 )
 
 
-class CostService:
+def get_daily_costs(
+    destination: str,
+) -> dict:
 
-    def __init__(self):
+    if not COST_FILE.exists():
+        raise FileNotFoundError(
+            f"Daily cost file not found: "
+            f"{COST_FILE}"
+        )
 
-        if not COST_FILE.exists():
-            raise FileNotFoundError(
-                f"Cost data file not found: {COST_FILE}"
-            )
+    with open(
+        COST_FILE,
+        "r",
+        encoding="utf-8",
+    ) as file:
 
-        with open(
-            COST_FILE,
-            "r",
-            encoding="utf-8",
-        ) as file:
+        data = json.load(file)
 
-            self.costs = json.load(file)
+    # Try exact destination first
+    if destination in data:
+        return data[destination]
 
-    def get_destination_costs(
-        self,
-        destination: str,
-    ) -> dict:
+    # Try case-insensitive matching
+    destination_lower = destination.lower()
 
-        destination_key = destination.strip()
+    for city, costs in data.items():
 
-        if destination_key not in self.costs:
+        if city.lower() == destination_lower:
+            return costs
 
-            raise ValueError(
-                "No cost data available for "
-                f"destination: {destination}"
-            )
-
-        return self.costs[destination_key]
+    raise ValueError(
+        f"No daily cost data found "
+        f"for destination: {destination}"
+    )
