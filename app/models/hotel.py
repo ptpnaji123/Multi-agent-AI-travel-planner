@@ -1,17 +1,48 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class CancellationPolicy(BaseModel):
+    amount: float = 0.0
+    from_date: str = ""
 
 
 class HotelOption(BaseModel):
-    name: str
+    hotel_code: str = ""
 
-    location: str
+    name: str = ""
+
+    location: str = ""
+
+    category: str = ""
 
     rating: float = 0.0
 
-    price_per_night: float
+    room_code: str = ""
 
-    currency: str
+    room_name: str = ""
 
-    total_price: float
+    board: str = ""
 
-    booking_url: str = ""
+    price_per_night: float = 0.0
+
+    total_price: float = 0.0
+
+    currency: str = ""
+
+    check_in_date: str = ""
+
+    check_out_date: str = ""
+
+    rate_key: str = ""
+
+    rate_type: str = ""
+
+    rate_class: str = ""
+
+    free_cancellation: bool = False
+
+    cancellation_policies: list[CancellationPolicy] = Field(
+        default_factory=list
+    )
+
+    provider: str = "hotelbeds"

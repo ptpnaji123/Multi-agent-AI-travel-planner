@@ -1,9 +1,8 @@
 from pydantic import BaseModel
 
 
-class FlightOption(BaseModel):
+class FlightSegment(BaseModel):
     airline: str
-
     flight_number: str = ""
 
     origin: str
@@ -12,9 +11,17 @@ class FlightOption(BaseModel):
     departure_time: str
     arrival_time: str
 
-    duration: str
+    duration: str = ""
 
-    price: float
+
+class RoundTripFlightOption(BaseModel):
+    outbound: FlightSegment
+    return_flight: FlightSegment
+
+    total_price: float
     currency: str
+
+    provider: str = ""
+    provider_offer_id: str = ""
 
     booking_url: str = ""

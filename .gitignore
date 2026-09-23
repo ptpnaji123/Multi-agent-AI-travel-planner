@@ -20,3 +20,10 @@ output/
 
 # Logs
 *.log
+certificates/
+*.key
+*.csr
+*.crt
+*.pem
+*.p12
+*.pfx

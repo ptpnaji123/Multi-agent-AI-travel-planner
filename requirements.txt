@@ -19,3 +19,4 @@ reportlab
 icalendar
 
 pytest
+amadeus
