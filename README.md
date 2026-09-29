@@ -120,53 +120,72 @@ travel-planner-agent/
 🚀 SETUP
 
 1. Clone the repository
+```text
 git clone <(https://github.com/ptpnaji123/Multi-agent-AI-travel-planner)>
 cd travel-planner-agent
+```
 
 2. Create a virtual environment
 
 Windows PowerShell:
+```text
 python -m venv .venv
+```
 
 Activate it:
+```text
 .\.venv\Scripts\Activate.ps1
+```
 
 3. Install dependencies
+```text
 pip install -r requirements.txt
+```
 
 4. Install and start Ollama
+```text
 Install Ollama and make sure it is running.
+```
 
 Pull the required models:
 
+```text
 ollama pull mistral:latest
 ollama pull nomic-embed-text
+```
 
 Check:
+```text
 ollama list
+```
 
 5. Configure environment variables
 
 Create a .env file in the project root:
 
+```text
 TAVILY_API_KEY=your_tavily_key
 DUFFEL_ACCESS_TOKEN=your_duffel_token
 OPENROUTESERVICE_API_KEY=your_openrouteservice_key
 HOTELBEDS_API_KEY=your_hotelbeds_key
 HOTELBEDS_SECRET=your_hotelbeds_secret
-
+```
 Never commit .env or expose your API keys.
 
 📚 RAG Setup
 
 If the RAG documents have not been indexed yet:
+```text
 python scripts/ingest_rag.py
+```
 
 ▶️ Run the Application
 Streamlit UI
 From the project root:
 
+```text
 streamlit run frontend/streamlit_app.py
+```
 
 Then open:
 
