@@ -78,6 +78,7 @@ Instead of relying on one large LLM prompt, the system divides the planning proc
                        │ Critic / Repair │
                        └─────────────────┘
 
+```
 🛠️ TECH STACK
 Python
 LangGraph
