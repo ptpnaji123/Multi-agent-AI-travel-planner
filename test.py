@@ -1,172 +1,62 @@
-from app.validators.schedule_validator import validate_schedule
+from datetime import date
 
-from app.models.itinerary import (
-    Itinerary,
-    ItineraryDay,
-    Activity,
-)
-
-from app.models.flight import (
-    RoundTripFlightOption,
-    FlightSegment,
-)
-
-from app.models.hotel import HotelOption
+from app.agents.hotel_agent import hotel_agent
+from app.models.trip_request import TripRequest
 
 
-# --------------------------------------------------
-# Fake flight
-# --------------------------------------------------
-
-flight = RoundTripFlightOption(
-    outbound=FlightSegment(
-        airline="Duffel Airways",
-        flight_number="6057",
-        origin="COK",
-        destination="DXB",
-        departure_time="2026-12-10T06:58:00",
-        arrival_time="2026-12-10T09:45:00",
-        duration="4h 17m",
-    ),
-    return_flight=FlightSegment(
-        airline="Duffel Airways",
-        flight_number="6058",
-        origin="DXB",
-        destination="COK",
-        departure_time="2026-12-15T10:50:00",
-        arrival_time="2026-12-15T16:37:00",
-        duration="4h 47m",
-    ),
-    total_price=230.40,
-    currency="USD",
-    total_price_inr=22040.064,
-    provider="Duffel",
-)
-
-
-# --------------------------------------------------
-# Fake hotel
-# --------------------------------------------------
-
-hotel = HotelOption(
-    hotel_code="TEST001",
-    name="You&Co Dubai",
-    location="Dubai",
-    room_name="MeetUp single room in shared apartment",
-    board="ROOM ONLY",
-    check_in_date="2026-12-10",
-    check_out_date="2026-12-15",
-    price_per_night=47.222,
-    total_price=236.11,
-    currency="EUR",
-    price_inr=25868.21,
-)
-
-
-# --------------------------------------------------
-# Deliberately INVALID itinerary
-# --------------------------------------------------
-
-itinerary = Itinerary(
+trip_request = TripRequest(
+    origin="Kochi",
     destination="Dubai",
-    days=[
-        ItineraryDay(
-            day=1,
-            date="2026-12-10",
-            area="Downtown Dubai",
-            activities=[
-                Activity(
-                    name="Hotel Check-in",
-                    start_time="11:00",
-                    end_time="12:00",
-                    location="You&Co Dubai",
-                )
-            ],
-        ),
-
-        ItineraryDay(
-            day=2,
-            date="2026-12-11",
-            area="Downtown Dubai",
-            activities=[
-                Activity(
-                    name="Dubai Mall",
-                    start_time="10:00",
-                    end_time="13:00",
-                    location="Dubai Mall",
-                ),
-                Activity(
-                    name="Burj Khalifa",
-                    start_time="12:00",
-                    end_time="14:00",
-                    location="Burj Khalifa",
-                ),
-            ],
-        ),
-
-        ItineraryDay(
-            day=3,
-            date="2026-12-12",
-            area="Jumeirah",
-            activities=[],
-        ),
-
-        ItineraryDay(
-            day=4,
-            date="2026-12-13",
-            area="Palm Jumeirah",
-            activities=[],
-        ),
-
-        ItineraryDay(
-            day=5,
-            date="2026-12-14",
-            area="Dubai",
-            activities=[],
-        ),
-
-        ItineraryDay(
-            day=6,
-            date="2026-12-15",
-            area="Dubai",
-            activities=[
-                Activity(
-                    name="Lunch",
-                    start_time="13:00",
-                    end_time="14:30",
-                    location="Dubai",
-                )
-            ],
-        ),
-    ],
+    start_date=date(2026, 12, 10),
+    end_date=date(2026, 12, 15),
+    travelers=1,
+    currency="INR",
 )
 
 
-# --------------------------------------------------
-# Validate
-# --------------------------------------------------
-
-result = validate_schedule(
-    itinerary=itinerary,
-    selected_flight=flight,
-    selected_hotel=hotel,
+hotels = hotel_agent(
+    trip_request
 )
 
 
-print("\n==============================")
-print("SCHEDULE VALIDATION")
-print("==============================")
+print("\n========== RESULTS ==========")
 
-print(
-    f"\nValid: {result['valid']}"
-)
+for index, hotel in enumerate(
+    hotels,
+    start=1,
+):
 
-print("\nErrors:")
+    print(
+        f"\n{index}. {hotel.name}"
+    )
 
-for error in result["errors"]:
-    print(f"- {error}")
+    print(
+        f"   Hotel code: "
+        f"{hotel.hotel_code}"
+    )
 
-print("\nWarnings:")
+    print(
+        f"   Room: "
+        f"{hotel.room_name}"
+    )
 
-for warning in result["warnings"]:
-    print(f"- {warning}")
+    print(
+        f"   Board: "
+        f"{hotel.board}"
+    )
+
+    print(
+        f"   Price: "
+        f"{hotel.total_price:.2f} "
+        f"{hotel.currency}"
+    )
+
+    print(
+        f"   INR: "
+        f"{hotel.total_price_inr:.2f}"
+    )
+
+    print(
+        f"   Bookable: "
+        f"{bool(hotel.rate_key)}"
+    )

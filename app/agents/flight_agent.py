@@ -2,38 +2,38 @@ from app.models.trip_request import TripRequest
 from app.models.flight import RoundTripFlightOption
 from app.providers.duffel_provider import DuffelProvider
 from app.services.currency_service import CurrencyService
+from app.services.airport_service import AirportService
 
 
-AIRPORT_CODES = {
-    "kochi": "COK",
-    "cochin": "COK",
-    "dubai": "DXB",
-}
+# -----------------------------------------
+# Airport service
+# -----------------------------------------
+
+airport_service = AirportService()
 
 
 def resolve_airport_code(
     location: str,
 ) -> str:
+    """
+    Resolve a user-provided city or airport
+    name to an IATA airport code.
 
-    location_key = (
-        location
-        .strip()
-        .lower()
-    )
+    Examples:
+        Kannur -> CNN
+        Kochi -> COK
+        Dubai -> DXB
+        Abu Dhabi -> AUH
+        COK -> COK
+        DXB -> DXB
+    """
 
-    if location_key in AIRPORT_CODES:
-        return AIRPORT_CODES[
-            location_key
-        ]
+    return airport_service.resolve(location)
 
-    if len(location_key) == 3:
-        return location_key.upper()
 
-    raise ValueError(
-        f"Airport code not found for location: "
-        f"{location}"
-    )
-
+# -----------------------------------------
+# Flight agent
+# -----------------------------------------
 
 def flight_agent(
     trip_request: TripRequest,
@@ -43,9 +43,17 @@ def flight_agent(
         "\nResolving airport codes..."
     )
 
+    # -----------------------------------------
+    # Resolve origin airport
+    # -----------------------------------------
+
     origin = resolve_airport_code(
         trip_request.origin
     )
+
+    # -----------------------------------------
+    # Resolve destination airport
+    # -----------------------------------------
 
     destination = resolve_airport_code(
         trip_request.destination
@@ -70,19 +78,14 @@ def flight_agent(
     )
 
     flights = provider.search_flights(
-
         origin=origin,
-
         destination=destination,
-
         departure_date=(
             trip_request.start_date
         ),
-
         return_date=(
             trip_request.end_date
         ),
-
         travelers=(
             trip_request.travelers
         ),
@@ -119,6 +122,7 @@ def flight_agent(
 
     for currency in currencies:
 
+        # INR does not require conversion.
         if currency == "INR":
 
             exchange_rates[currency] = 1.0

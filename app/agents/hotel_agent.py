@@ -1,67 +1,141 @@
-from decimal import Decimal
+from pathlib import Path
 
 from app.models.trip_request import TripRequest
 from app.models.hotel import HotelOption
-from app.providers.hotelbeds_provider import HotelbedsProvider
-from app.services.currency_service import CurrencyService
 
-
-DESTINATION_CODES = {
-    "dubai": "DXB",
-}
-
-
-CERTIFICATE_PATH = (
-    "certificates/"
-    "certificate-cc0e5bbc8d5f6a35b8e1786368dcdc5b244b8602b88facfc2456a0c626de89a0.pem"
+from app.providers.hotelbeds_provider import (
+    HotelbedsProvider,
 )
 
-PRIVATE_KEY_PATH = (
-    "certificates/"
-    "hotelbeds-client-unencrypted.key"
+from app.services.currency_service import (
+    CurrencyService,
 )
 
+from app.services.hotelbeds_destination_service import (
+    HotelbedsDestinationService,
+)
+
+
+# ============================================================
+# PROJECT PATH
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+CERTIFICATES_DIR = (
+    PROJECT_ROOT
+    / "certificates"
+)
+
+
+CLIENT_CERTIFICATE = (
+    CERTIFICATES_DIR
+    / "certificate-cc0e5bbc8d5f6a35b8e1786368dcdc5b244b8602b88facfc2456a0c626de89a0.pem"
+)
+
+
+CLIENT_PRIVATE_KEY = (
+    CERTIFICATES_DIR
+    / "hotelbeds-client-unencrypted.key"
+)
+
+
+# ============================================================
+# SERVICES
+# ============================================================
+
+destination_service = (
+    HotelbedsDestinationService()
+)
+
+
+# ============================================================
+# VALIDATE CERTIFICATES
+# ============================================================
+
+def validate_hotelbeds_certificates():
+
+    if not CLIENT_CERTIFICATE.exists():
+
+        raise FileNotFoundError(
+            "Hotelbeds client certificate not found: "
+            f"{CLIENT_CERTIFICATE}"
+        )
+
+    if not CLIENT_PRIVATE_KEY.exists():
+
+        raise FileNotFoundError(
+            "Hotelbeds client private key not found: "
+            f"{CLIENT_PRIVATE_KEY}"
+        )
+
+
+# ============================================================
+# HOTELBEDS DESTINATION RESOLUTION
+# ============================================================
 
 def resolve_destination_code(
     destination: str,
 ) -> str:
 
-    destination_key = (
+    return destination_service.resolve(
         destination
-        .strip()
-        .lower()
     )
 
-    if destination_key in DESTINATION_CODES:
-        return DESTINATION_CODES[
-            destination_key
-        ]
 
-    raise ValueError(
-        "Hotelbeds destination code "
-        f"not found for: {destination}"
-    )
-
+# ============================================================
+# HOTEL AGENT
+# ============================================================
 
 def hotel_agent(
     trip_request: TripRequest,
 ) -> list[HotelOption]:
 
+    # --------------------------------------------------------
+    # Validate certificates
+    # --------------------------------------------------------
+
+    validate_hotelbeds_certificates()
+
+    # --------------------------------------------------------
+    # Resolve Hotelbeds destination
+    # --------------------------------------------------------
+
     print(
-        "\n[HOTEL] Resolving destination..."
+        "\nResolving Hotelbeds destination..."
     )
 
-    destination_code = resolve_destination_code(
-        trip_request.destination
+    destination_code = (
+        resolve_destination_code(
+            trip_request.destination
+        )
     )
+
+    print(
+        f"Hotelbeds destination: "
+        f"{destination_code}"
+    )
+
+    # --------------------------------------------------------
+    # Create Hotelbeds provider
+    # --------------------------------------------------------
 
     provider = HotelbedsProvider(
-        certificate_path=CERTIFICATE_PATH,
-        private_key_path=PRIVATE_KEY_PATH,
+        certificate_path=str(
+            CLIENT_CERTIFICATE
+        ),
+        private_key_path=str(
+            CLIENT_PRIVATE_KEY
+        ),
     )
 
+    # --------------------------------------------------------
+    # Search hotels
+    # --------------------------------------------------------
+
     print(
-        "[HOTEL] Calling Hotelbeds..."
+        "\nSearching Hotelbeds for hotels..."
     )
 
     hotels = provider.search_hotels(
@@ -73,39 +147,42 @@ def hotel_agent(
     )
 
     print(
-        f"[HOTEL] Hotelbeds returned "
-        f"{len(hotels)} rate combinations."
+        f"Hotelbeds returned "
+        f"{len(hotels)} hotel options."
     )
 
-    # -----------------------------------------------------
-    # STEP 1: Keep only BOOKABLE rates
-    # -----------------------------------------------------
+    if not hotels:
+
+        raise ValueError(
+            "Hotelbeds returned no hotel options."
+        )
+
+    # --------------------------------------------------------
+    # Keep only bookable hotels
+    # --------------------------------------------------------
 
     bookable_hotels = [
         hotel
         for hotel in hotels
-        if hotel.rate_type.upper() == "BOOKABLE"
+        if hotel.rate_key
     ]
 
     print(
-        f"[HOTEL] BOOKABLE rates: "
+        f"Bookable hotels: "
         f"{len(bookable_hotels)}"
     )
 
-    if not bookable_hotels:
-        print(
-            "[HOTEL] No BOOKABLE hotel rates found."
-        )
+    if bookable_hotels:
 
-        return []
+        hotels = bookable_hotels
 
-    # -----------------------------------------------------
-    # STEP 2: Remove duplicates
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # Remove duplicate hotel/rate combinations
+    # --------------------------------------------------------
 
     unique_hotels = {}
 
-    for hotel in bookable_hotels:
+    for hotel in hotels:
 
         key = (
             hotel.hotel_code,
@@ -116,114 +193,123 @@ def hotel_agent(
         )
 
         if key not in unique_hotels:
+
             unique_hotels[key] = hotel
 
-    bookable_hotels = list(
+    hotels = list(
         unique_hotels.values()
     )
 
     print(
-        f"[HOTEL] After deduplication: "
-        f"{len(bookable_hotels)}"
+        f"Hotels after deduplication: "
+        f"{len(hotels)}"
     )
 
-    # -----------------------------------------------------
-    # STEP 3: Get exchange rates ONCE per currency
-    # -----------------------------------------------------
+    if not hotels:
+
+        raise ValueError(
+            "No usable hotel options "
+            "remained after filtering."
+        )
+
+    # --------------------------------------------------------
+    # Currency conversion
+    # --------------------------------------------------------
+
+    print(
+        "\nConverting hotel prices to INR..."
+    )
 
     currency_service = CurrencyService()
 
-    currencies = sorted(
-        {
-            hotel.currency.upper()
-            for hotel in bookable_hotels
-            if hotel.currency
-        }
-    )
-
-    print(
-        f"[HOTEL] Provider currencies: "
-        f"{currencies}"
+    currencies = set(
+        hotel.currency.upper()
+        for hotel in hotels
+        if hotel.currency
     )
 
     exchange_rates = {}
 
     for currency in currencies:
 
+        # INR does not need conversion
         if currency == "INR":
 
-            exchange_rates[currency] = Decimal("1")
+            exchange_rates[currency] = 1.0
 
             continue
 
         print(
-            f"[HOTEL] Fetching "
-            f"{currency} -> INR exchange rate..."
+            f"Fetching exchange rate: "
+            f"{currency} -> INR"
         )
 
-        rate = currency_service.get_exchange_rate(
-            from_currency=currency,
-            to_currency="INR",
+        rate = (
+            currency_service.get_exchange_rate(
+                from_currency=currency,
+                to_currency="INR",
+            )
         )
 
-        exchange_rates[currency] = rate
+        exchange_rates[currency] = float(
+            rate
+        )
 
         print(
-            f"[HOTEL] {currency} -> INR = {rate}"
+            f"{currency} -> INR = {rate}"
         )
 
-    # -----------------------------------------------------
-    # STEP 4: Convert all prices LOCALLY
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # Apply INR conversion
+    # --------------------------------------------------------
 
-    for hotel in bookable_hotels:
+    for hotel in hotels:
 
-        currency = hotel.currency.upper()
+        currency = (
+            hotel.currency.upper()
+        )
 
         if currency not in exchange_rates:
+
             raise ValueError(
-                "Missing exchange rate for "
-                f"currency: {currency}"
+                "No exchange rate available "
+                f"for currency: {currency}"
             )
 
-        exchange_rate = exchange_rates[
-            currency
-        ]
-
-        hotel.total_price_inr = float(
-            (
-                Decimal(
-                    str(hotel.total_price)
-                )
-                * exchange_rate
-            ).quantize(
-                Decimal("0.01")
-            )
+        hotel.total_price_inr = (
+            hotel.total_price
+            * exchange_rates[currency]
         )
 
     print(
-        "[HOTEL] Currency conversion completed."
+        "Hotel currency conversion completed."
     )
 
-    # -----------------------------------------------------
-    # STEP 5: Sort by INR price
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # Sort hotels by INR price
+    # --------------------------------------------------------
 
-    bookable_hotels = sorted(
-        bookable_hotels,
-        key=lambda hotel: hotel.total_price_inr,
+    hotels = sorted(
+        hotels,
+        key=lambda hotel: (
+            hotel.total_price_inr
+        ),
     )
 
-    # -----------------------------------------------------
-    # STEP 6: Return top 5
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # Return top 5
+    # --------------------------------------------------------
 
-    top_hotels = bookable_hotels[:5]
+    top_hotels = hotels[:5]
 
     print(
-        f"[HOTEL] Returning "
+        f"\nReturning "
         f"{len(top_hotels)} hotel options."
     )
+
+    # --------------------------------------------------------
+    # Display selected hotels
+    # --------------------------------------------------------
 
     for index, hotel in enumerate(
         top_hotels,
@@ -231,11 +317,9 @@ def hotel_agent(
     ):
 
         print(
-            f"[HOTEL] {index}. "
-            f"{hotel.name} | "
-            f"{hotel.currency} "
-            f"{hotel.total_price:.2f} | "
-            f"₹{hotel.total_price_inr:,.2f}"
+            f"{index}. "
+            f"{hotel.name} - "
+            f"{hotel.total_price_inr:.2f} INR"
         )
 
     return top_hotels
