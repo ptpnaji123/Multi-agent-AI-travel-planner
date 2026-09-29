@@ -6,6 +6,15 @@ class CurrencyService:
 
     BASE_URL = "https://api.frankfurter.dev/v2"
 
+    # Fallback rates used only when the live exchange-rate API is unavailable.
+    # Update these periodically if the live API remains unavailable.
+    FALLBACK_RATES = {
+        ("USD", "INR"): Decimal("95.66"),
+        ("EUR", "INR"): Decimal("109.54"),
+        ("GBP", "INR"): Decimal("128.00"),
+        ("AED", "INR"): Decimal("26.05"),
+    }
+
     def get_exchange_rate(
         self,
         from_currency: str,
@@ -25,23 +34,75 @@ class CurrencyService:
             f"{to_currency}"
         )
 
-        response = requests.get(
-            url,
-            timeout=15,
-        )
-
-        if not response.ok:
-            raise ValueError(
-                f"Failed to fetch exchange rate "
-                f"{from_currency} -> {to_currency}. "
-                f"Status: {response.status_code}. "
-                f"Response: {response.text}"
+        try:
+            response = requests.get(
+                url,
+                timeout=10,
             )
 
-        data = response.json()
+            if response.ok:
+                data = response.json()
 
-        return Decimal(
-            str(data["rate"])
+                rate = Decimal(
+                    str(data["rate"])
+                )
+
+                print(
+                    f"Live exchange rate: "
+                    f"1 {from_currency} = {rate} {to_currency}"
+                )
+
+                return rate
+
+            print(
+                f"Warning: Exchange-rate API returned "
+                f"HTTP {response.status_code}."
+            )
+
+        except requests.exceptions.Timeout:
+            print(
+                f"Warning: Exchange-rate API timed out "
+                f"for {from_currency} -> {to_currency}."
+            )
+
+        except requests.exceptions.RequestException as exc:
+            print(
+                f"Warning: Exchange-rate API request failed: "
+                f"{exc}"
+            )
+
+        except (KeyError, ValueError, TypeError) as exc:
+            print(
+                f"Warning: Invalid exchange-rate API response: "
+                f"{exc}"
+            )
+
+        # ---------------------------------------------------------
+        # FALLBACK
+        # ---------------------------------------------------------
+
+        fallback_key = (
+            from_currency,
+            to_currency,
+        )
+
+        if fallback_key in self.FALLBACK_RATES:
+
+            rate = self.FALLBACK_RATES[
+                fallback_key
+            ]
+
+            print(
+                f"Using fallback exchange rate: "
+                f"1 {from_currency} = {rate} {to_currency}"
+            )
+
+            return rate
+
+        raise ValueError(
+            f"Unable to obtain exchange rate "
+            f"{from_currency} -> {to_currency}. "
+            f"No fallback rate is configured."
         )
 
     def convert_currency(

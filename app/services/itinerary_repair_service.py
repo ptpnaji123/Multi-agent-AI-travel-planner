@@ -1,80 +1,53 @@
 from datetime import datetime, timedelta
 
-from app.models.itinerary import (
-    Itinerary,
-    ItineraryDay,
-    Activity,
-)
 from app.models.trip_request import TripRequest
 from app.models.flight import RoundTripFlightOption
 from app.models.hotel import HotelOption
+from app.models.itinerary import Activity, Itinerary, ItineraryDay
 
 
 def _parse_datetime(value: str) -> datetime:
     """
-    Parse common ISO flight datetime formats.
+    Parse a flight datetime string.
+
+    Supports common ISO-8601 formats including:
+    - 2026-12-15T10:50:00
+    - 2026-12-15T10:50:00+04:00
+    - 2026-12-15T10:50
     """
 
     value = value.strip()
 
     if value.endswith("Z"):
-        value = value[:-1]
+        value = value[:-1] + "+00:00"
 
-    # Handle timezone offset if present.
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        pass
-
-    # Fallback formats.
-    formats = [
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%dT%H:%M",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-    ]
-
-    for fmt in formats:
-        try:
-            return datetime.strptime(value, fmt)
-        except ValueError:
-            continue
-
-    raise ValueError(
-        f"Unable to parse flight datetime: {value}"
-    )
+    return datetime.fromisoformat(value)
 
 
-def _minutes(value: str) -> int:
-    hour, minute = value.split(":")
-    return int(hour) * 60 + int(minute)
+def _format_time(value: datetime) -> str:
+    return value.strftime("%H:%M")
 
 
-def _time(minutes: int) -> str:
-    minutes = max(0, min(minutes, 23 * 60 + 59))
-
-    hour = minutes // 60
-    minute = minutes % 60
-
-    return f"{hour:02d}:{minute:02d}"
+def _format_date(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d")
 
 
 def _make_activity(
     name: str,
-    start: int,
-    end: int,
+    start: datetime,
+    end: datetime,
     location: str,
     description: str = "",
-    cost: float = 0.0,
+    estimated_cost: float = 0.0,
 ) -> Activity:
 
     return Activity(
         name=name,
-        start_time=_time(start),
-        end_time=_time(end),
+        start_time=_format_time(start),
+        end_time=_format_time(end),
         location=location,
         description=description,
-        estimated_cost=cost,
+        estimated_cost=estimated_cost,
         currency="INR",
     )
 
@@ -85,62 +58,59 @@ def _arrival_day(
     selected_hotel: HotelOption,
 ) -> ItineraryDay:
 
-    arrival_dt = _parse_datetime(
+    arrival = _parse_datetime(
         selected_flight.outbound.arrival_time
     )
 
-    arrival = arrival_dt.hour * 60 + arrival_dt.minute
+    hotel_name = selected_hotel.name
 
-    # 60 minutes for immigration/arrival processing.
-    immigration_end = arrival + 60
+    # Arrival buffer:
+    # Flight arrival
+    # + 60 min immigration/baggage
+    # + 30 min transfer
+    # + 30 min hotel check-in
+    # + rest
+    immigration_end = arrival + timedelta(minutes=60)
+    transfer_end = immigration_end + timedelta(minutes=30)
+    checkin_end = transfer_end + timedelta(minutes=30)
 
-    # 30 minutes transfer to hotel.
-    transfer_end = immigration_end + 30
-
-    # Hotel check-in starts after the 90-minute arrival buffer.
-    checkin_end = transfer_end + 45
-
-    rest_end = min(checkin_end + 180, 22 * 60)
+    rest_end = checkin_end + timedelta(hours=4)
 
     activities = [
         _make_activity(
-            name="Airport Arrival & Immigration",
+            name="Arrival at Dubai International Airport",
             start=arrival,
             end=immigration_end,
-            location="DXB",
+            location="Dubai International Airport",
             description="Arrival, immigration and baggage collection.",
-            cost=0,
         ),
         _make_activity(
-            name="Airport Transfer",
+            name="Airport transfer to hotel",
             start=immigration_end,
             end=transfer_end,
-            location=selected_hotel.hotel_name,
-            description="Transfer from Dubai International Airport to the hotel.",
-            cost=0,
+            location=f"Dubai International Airport to {hotel_name}",
+            description="Transfer from the airport to the selected hotel.",
         ),
         _make_activity(
-            name="Hotel Check-in",
+            name="Hotel check-in",
             start=transfer_end,
             end=checkin_end,
-            location=selected_hotel.hotel_name,
-            description="Hotel check-in and settling into the room.",
-            cost=0,
+            location=hotel_name,
+            description="Check-in at the selected hotel.",
         ),
         _make_activity(
             name="Rest",
             start=checkin_end,
             end=rest_end,
-            location=selected_hotel.hotel_name,
+            location=hotel_name,
             description="Rest after the journey.",
-            cost=0,
         ),
     ]
 
     return ItineraryDay(
         day=1,
-        date=trip_request.start_date.isoformat(),
-        area="DXB",
+        date=_format_date(arrival),
+        area="Airport",
         activities=activities,
     )
 
@@ -151,202 +121,260 @@ def _departure_day(
     selected_hotel: HotelOption,
 ) -> ItineraryDay:
 
-    departure_dt = _parse_datetime(
+    departure = _parse_datetime(
         selected_flight.return_flight.departure_time
     )
 
-    departure = departure_dt.hour * 60 + departure_dt.minute
+    hotel_name = selected_hotel.name
 
-    # 3 hours before flight departure.
-    airport_target = departure - 180
-
-    # Keep hotel checkout 30 minutes before airport transfer.
-    checkout_start = max(0, airport_target - 30)
-    checkout_end = airport_target
-
-    # Airport check-in/security.
-    airport_end = max(
-        airport_target + 150,
-        departure - 30,
+    # Target airport arrival:
+    # 3 hours before international flight.
+    airport_arrival_target = departure - timedelta(
+        hours=3
     )
 
-    # Never exceed flight departure.
-    airport_end = min(
-        airport_end,
-        departure - 5,
+    # Assume 45 minutes for hotel -> airport transfer.
+    transfer_start = airport_arrival_target - timedelta(
+        minutes=45
     )
 
-    activities = [
+    # Hotel checkout 30 minutes before transfer.
+    checkout_start = transfer_start - timedelta(
+        minutes=30
+    )
+
+    checkout_end = transfer_start
+
+    # Make sure all times remain on the departure date.
+    day_start = departure.replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+
+    # If the calculated checkout time is before midnight,
+    # keep it at the calculated time.
+    # For a normal morning departure this will still be
+    # on the same date.
+    activities = []
+
+    activities.append(
         _make_activity(
-            name="Hotel Checkout",
+            name="Checkout from hotel",
             start=checkout_start,
             end=checkout_end,
-            location=selected_hotel.hotel_name,
-            description="Check out from the hotel.",
-            cost=0,
-        ),
+            location=hotel_name,
+            description="Check out from the selected hotel before heading to the airport.",
+        )
+    )
+
+    activities.append(
         _make_activity(
-            name="Airport Transfer",
-            start=checkout_end,
-            end=airport_target,
-            location="DXB",
+            name="Airport transfer",
+            start=transfer_start,
+            end=airport_arrival_target,
+            location=f"{hotel_name} to Dubai International Airport",
             description="Transfer to Dubai International Airport.",
-            cost=0,
-        ),
-        _make_activity(
-            name="Airport Check-in & Security",
-            start=airport_target,
-            end=airport_end,
-            location="DXB",
-            description="Airport check-in, security and departure preparation.",
-            cost=0,
-        ),
-    ]
+        )
+    )
+
+    # Do NOT create an activity after the flight departure.
+    #
+    # The flight itself is handled by the selected flight object.
+    # Therefore the itinerary ends at the airport arrival target.
 
     return ItineraryDay(
-        day=(
-            trip_request.end_date - trip_request.start_date
-        ).days + 1,
-        date=trip_request.end_date.isoformat(),
-        area="DXB",
+        day=1,
+        date=_format_date(departure),
+        area="Airport",
         activities=activities,
     )
 
 
-def _clean_middle_day(day: ItineraryDay) -> ItineraryDay:
+def _clean_middle_day(
+    day: ItineraryDay,
+) -> ItineraryDay:
 
-    valid_activities = []
+    cleaned = []
 
     for activity in day.activities:
 
         try:
-            start = _minutes(activity.start_time)
-            end = _minutes(activity.end_time)
-        except Exception:
+            start = datetime.strptime(
+                activity.start_time,
+                "%H:%M",
+            )
+
+            end = datetime.strptime(
+                activity.end_time,
+                "%H:%M",
+            )
+
+        except ValueError:
             continue
 
         if end <= start:
             continue
 
-        valid_activities.append(activity)
+        cleaned.append(activity)
 
-    # Sort activities.
-    valid_activities.sort(
-        key=lambda item: _minutes(item.start_time)
+    # Sort chronologically.
+    cleaned.sort(
+        key=lambda activity: datetime.strptime(
+            activity.start_time,
+            "%H:%M",
+        )
     )
 
-    # Remove overlaps instead of inventing new activities.
-    cleaned = []
+    # Remove overlapping activities.
+    result = []
     previous_end = None
 
-    for activity in valid_activities:
+    for activity in cleaned:
 
-        start = _minutes(activity.start_time)
-        end = _minutes(activity.end_time)
+        start = datetime.strptime(
+            activity.start_time,
+            "%H:%M",
+        )
+
+        end = datetime.strptime(
+            activity.end_time,
+            "%H:%M",
+        )
 
         if previous_end is not None and start < previous_end:
-            # Completely overlapping activity.
-            if end <= previous_end:
-                continue
+            continue
 
-            # Shift its start to previous end.
-            start = previous_end
+        result.append(activity)
+        previous_end = end
 
-            if start >= end:
-                continue
+    # Keep the itinerary manageable.
+    result = result[:5]
 
-            activity.start_time = _time(start)
-
-        cleaned.append(activity)
-        previous_end = _minutes(activity.end_time)
-
-    # Keep itinerary practical.
-    cleaned = cleaned[:4]
-
-    day.activities = cleaned
-
-    return day
+    return ItineraryDay(
+        day=day.day,
+        date=day.date,
+        area=day.area,
+        activities=result,
+    )
 
 
 def deterministic_repair_itinerary(
-    itinerary: Itinerary,
     trip_request: TripRequest,
+    itinerary: Itinerary,
     selected_flight: RoundTripFlightOption,
     selected_hotel: HotelOption,
 ) -> Itinerary:
 
-    print("\n--- DETERMINISTIC ITINERARY REPAIR ---")
+    print()
+    print("--- DETERMINISTIC ITINERARY REPAIR ---")
     print("Repairing itinerary with Python rules.")
     print("Mistral will NOT regenerate the itinerary.")
 
-    expected_days = (
-        trip_request.end_date - trip_request.start_date
-    ).days + 1
+    arrival = _parse_datetime(
+        selected_flight.outbound.arrival_time
+    )
+
+    departure = _parse_datetime(
+        selected_flight.return_flight.departure_time
+    )
+
+    expected_dates = []
+
+    current_date = arrival.date()
+
+    while current_date <= departure.date():
+        expected_dates.append(current_date)
+        current_date += timedelta(days=1)
 
     repaired_days = []
 
-    for index in range(expected_days):
+    total_days = len(expected_dates)
 
-        current_date = (
-            trip_request.start_date
-            + timedelta(days=index)
-        )
+    for index, current_date in enumerate(expected_dates):
 
-        # Arrival day.
+        day_number = index + 1
+
+        # ---------------------------------------------------------
+        # ARRIVAL DAY
+        # ---------------------------------------------------------
+
         if index == 0:
-            repaired_days.append(
-                _arrival_day(
-                    trip_request,
-                    selected_flight,
-                    selected_hotel,
-                )
+
+            repaired_day = _arrival_day(
+                trip_request=trip_request,
+                selected_flight=selected_flight,
+                selected_hotel=selected_hotel,
             )
+
+            repaired_day.day = day_number
+            repaired_day.date = current_date.isoformat()
+
+            repaired_days.append(
+                repaired_day
+            )
+
             continue
 
-        # Departure day.
-        if index == expected_days - 1:
-            repaired_days.append(
-                _departure_day(
-                    trip_request,
-                    selected_flight,
-                    selected_hotel,
-                )
+        # ---------------------------------------------------------
+        # DEPARTURE DAY
+        # ---------------------------------------------------------
+
+        if index == total_days - 1:
+
+            repaired_day = _departure_day(
+                trip_request=trip_request,
+                selected_flight=selected_flight,
+                selected_hotel=selected_hotel,
             )
+
+            repaired_day.day = day_number
+            repaired_day.date = current_date.isoformat()
+
+            repaired_days.append(
+                repaired_day
+            )
+
             continue
 
-        # Middle day.
-        matching_day = None
+        # ---------------------------------------------------------
+        # MIDDLE DAYS
+        # ---------------------------------------------------------
+
+        original_day = None
 
         for day in itinerary.days:
+
             if day.date == current_date.isoformat():
-                matching_day = day
+                original_day = day
                 break
 
-        if matching_day is None:
-            matching_day = ItineraryDay(
-                day=index + 1,
+        if original_day is None:
+
+            # If the LLM failed to generate this date,
+            # create an empty but valid day.
+            repaired_day = ItineraryDay(
+                day=day_number,
                 date=current_date.isoformat(),
                 area=trip_request.destination,
                 activities=[],
             )
 
-        matching_day.day = index + 1
-        matching_day.date = current_date.isoformat()
+        else:
 
-        matching_day = _clean_middle_day(
-            matching_day
+            repaired_day = _clean_middle_day(
+                original_day
+            )
+
+            repaired_day.day = day_number
+            repaired_day.date = current_date.isoformat()
+
+        repaired_days.append(
+            repaired_day
         )
 
-        repaired_days.append(matching_day)
-
-    repaired = Itinerary(
-        destination=trip_request.destination,
+    return Itinerary(
+        destination=itinerary.destination,
         days=repaired_days,
     )
-
-    print(
-        f"Deterministic repair produced "
-        f"{len(repaired.days)} days."
-    )
-
-    return repaired
