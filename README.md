@@ -80,6 +80,7 @@ Instead of relying on one large LLM prompt, the system divides the planning proc
 
 ```
 🛠️ TECH STACK
+```text
 Python
 LangGraph
 LangChain
@@ -91,9 +92,11 @@ Duffel API
 Hotelbeds API
 Pydantic
 Streamlit
-
+```
 
 📁 PROJECT STRUCTURE
+
+```text
 travel-planner-agent/
 ├── app/
 │   ├── agents/
@@ -112,7 +115,7 @@ travel-planner-agent/
 ├── .env
 ├── requirements.txt
 └── run.py
-
+```
 
 🚀 SETUP
 
