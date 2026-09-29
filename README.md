@@ -188,26 +188,28 @@ streamlit run frontend/streamlit_app.py
 ```
 
 Then open:
-
+```text
 http://localhost:8501
 Command-line version
 python run.py
+```
 
 🧪 Example Request
+```text
 I want to travel from Kochi to Dubai
 from December 10 to December 15, 2026.
 There is 1 traveler.
-
+```
 The application can then generate:
 
 Kochi → Dubai
-
+```text
 ✈️ Flight
 🏨 Hotel
 💰 Estimated Budget
 📅 Day-by-Day Itinerary
 🌍 Destination Highlights
-
+```
 
 ⚠️ Notes
 Flight and hotel prices depend on live provider availability.
